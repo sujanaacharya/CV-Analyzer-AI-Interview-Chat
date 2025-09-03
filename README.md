@@ -1,4 +1,4 @@
-markdown
+
 # **CV Analyzer AI Interview Chat**  🚀
 
 **An AI-powered web application** that allows users to upload their CVs, automatically generates interview questions based on the CV, and provides an AI chatbot interface for practicing interview questions and receiving guidance.
@@ -7,7 +7,7 @@ markdown
 [![Django](https://img.shields.io/badge/Django-5.2-green?logo=django&logoColor=white)](https://www.djangoproject.com/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
----
+
 
 ## **Features** ✨
 
@@ -17,7 +17,7 @@ markdown
 - **Chat History:** Stores previous chat messages linked to each CV.  
 - **Web Interface:** Built with **Django templates** and styled with **Bootstrap**.  
 
----
+
 
 ## **Tech Stack** 🛠️
 
@@ -27,7 +27,7 @@ markdown
 - **Database:** Django ORM (default SQLite, can be configured)  
 - **File Handling:** PyPDF2 for PDFs, python-docx for Word documents  
 
----
+
 
 ## **Installation** ⚡
 
@@ -72,7 +72,7 @@ python manage.py runserver
 7. **Open in browser:**
    Visit [http://127.0.0.1:8000/](http://127.0.0.1:8000/)
 
----
+
 
 ## **Usage** 📝
 
@@ -81,7 +81,7 @@ python manage.py runserver
 * Go to the **Chat interface** to interact with the AI assistant for **interview practice**.
 * **Chat history** is saved for each uploaded CV.
 
----
+
 
 ## **Notes** ⚠️
 
@@ -89,13 +89,13 @@ python manage.py runserver
 * The **streaming AI chat** requires modern browsers that support **EventSource**.
 * Currently designed for **development/testing**. For production, a proper **WSGI/ASGI server** is recommended.
 
----
+
 
 ## **License** 📄
 
 **MIT License**
 
----
+
 
 ## **Demo** 🎬
 
