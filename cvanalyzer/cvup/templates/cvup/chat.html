@@ -1,0 +1,383 @@
+<!-- templates/cvup/chat.html -->
+{% extends 'cvup/base.html' %}
+
+{% block title %}AI Chat Practice - CV Analyzer{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <div class="card border-0 shadow-lg">
+            <div class="card-header gradient-bg">
+                <h4 class="mb-0">
+                    <i class="fas fa-robot me-2"></i>AI Interview Practice Chat
+                </h4>
+                <small>Ask questions about your interview preparation or practice your answers</small>
+            </div>
+            <div class="card-body p-0">
+                <div id="chatContainer" class="chat-container">
+                    {% for message in chat_messages %}
+                    <div class="d-flex flex-column mb-3">
+                        <div class="user-message align-self-end">
+                            <strong>You:</strong> {{ message.message }}
+                        </div>
+                        <div class="ai-message">
+                            <strong>AI:</strong> {{ message.response|linebreaks }}
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="text-center text-muted">
+                        <i class="fas fa-comments fa-2x mb-3"></i>
+                        <p>Start a conversation! Ask me anything about your interview questions or CV.</p>
+                    </div>
+                    {% endfor %}
+                </div>
+                
+                <div class="p-3 border-top">
+                    <form id="chatForm" class="d-flex">
+                        {% csrf_token %}
+                        <input type="text" 
+                               id="messageInput" 
+                               class="form-control me-2" 
+                               placeholder="Ask about interview questions, tips, or practice answers..."
+                               required>
+                        <button type="submit" class="btn btn-primary" id="sendButton">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </form>
+                    <small class="text-muted">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Try: "Help me answer the question about my strengths" or "Give me tips for behavioral questions"
+                    </small>
+                </div>
+            </div>
+        </div>
+        
+        <div class="text-center mt-3">
+            <a href="{% url 'view_questions' cv_upload.id %}" class="btn btn-outline-primary">
+                <i class="fas fa-arrow-left me-2"></i>Back to Questions
+            </a>
+            <a href="{% url 'upload_cv' %}" class="btn btn-outline-secondary ms-2">
+                <i class="fas fa-upload me-2"></i>Upload New CV
+            </a>
+        </div>
+    </div>
+</div>
+
+<style>
+.chat-container {
+    max-height: 500px;
+    overflow-y: auto;
+    padding: 20px;
+    background-color: #f8f9fa;
+}
+
+.user-message {
+    background-color: #007bff;
+    color: white;
+    padding: 10px 15px;
+    border-radius: 18px 18px 5px 18px;
+    max-width: 80%;
+    margin-bottom: 10px;
+    word-wrap: break-word;
+}
+
+.ai-message {
+    background-color: #e9ecef;
+    color: #333;
+    padding: 10px 15px;
+    border-radius: 18px 18px 18px 5px;
+    max-width: 80%;
+    margin-bottom: 10px;
+    word-wrap: break-word;
+}
+
+.typing-indicator {
+    animation: blink 1s infinite;
+    color: #007bff;
+    font-weight: bold;
+}
+
+@keyframes blink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0; }
+}
+
+.loading-message {
+    opacity: 0.7;
+}
+
+.error-message {
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const chatForm = document.getElementById('chatForm');
+    const messageInput = document.getElementById('messageInput');
+    const sendButton = document.getElementById('sendButton');
+    const chatContainer = document.getElementById('chatContainer');
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    
+    // Scroll to bottom of chat
+    function scrollToBottom() {
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+    
+    // Escape HTML
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+    // Add message to chat
+    function addMessage(message, isUser = false, isError = false) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'd-flex flex-column mb-3';
+        
+        if (isUser) {
+            messageDiv.innerHTML = `
+                <div class="user-message align-self-end">
+                    <strong>You:</strong> ${escapeHtml(message)}
+                </div>
+            `;
+        } else {
+            const errorClass = isError ? ' error-message' : '';
+            messageDiv.innerHTML = `
+                <div class="ai-message${errorClass}">
+                    <strong>AI:</strong> <span class="message-content">${message.replace(/\n/g, '<br>')}</span>
+                </div>
+            `;
+        }
+        
+        chatContainer.appendChild(messageDiv);
+        scrollToBottom();
+        return messageDiv;
+    }
+    
+    // Create streaming message container
+    function createStreamingMessage() {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'd-flex flex-column mb-3';
+        messageDiv.innerHTML = `
+            <div class="ai-message" id="streaming-message">
+                <strong>AI:</strong> <span class="message-content"></span><span class="typing-indicator">▋</span>
+            </div>
+        `;
+        chatContainer.appendChild(messageDiv);
+        scrollToBottom();
+        return messageDiv;
+    }
+    
+    // Update streaming message
+    function updateStreamingMessage(text) {
+        const streamingMsg = document.getElementById('streaming-message');
+        if (streamingMsg) {
+            const content = streamingMsg.querySelector('.message-content');
+            if (content) {
+                content.innerHTML = text.replace(/\n/g, '<br>');
+                scrollToBottom();
+            }
+        }
+    }
+    
+    // Finalize streaming message
+    function finalizeStreamingMessage() {
+        const streamingMsg = document.getElementById('streaming-message');
+        if (streamingMsg) {
+            const typingIndicator = streamingMsg.querySelector('.typing-indicator');
+            if (typingIndicator) {
+                typingIndicator.remove();
+            }
+            streamingMsg.id = `ai-message-${Date.now()}`;
+        }
+    }
+    
+    // Show loading indicator
+    function showLoading() {
+        const loadingDiv = document.createElement('div');
+        loadingDiv.id = 'loading';
+        loadingDiv.className = 'd-flex flex-column mb-3';
+        loadingDiv.innerHTML = `
+            <div class="ai-message loading-message">
+                <i class="fas fa-spinner fa-spin me-2"></i>AI is thinking...
+            </div>
+        `;
+        chatContainer.appendChild(loadingDiv);
+        scrollToBottom();
+    }
+    
+    // Remove loading indicator
+    function hideLoading() {
+        const loading = document.getElementById('loading');
+        if (loading) {
+            loading.remove();
+        }
+    }
+    
+    // Handle streaming response
+    async function handleStreamingResponse(message) {
+        try {
+            showLoading();
+            
+            const response = await fetch(`/api/send-message-stream/{{ cv_upload.id }}/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({ message: message })
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            hideLoading();
+            
+            // Check if the response is actually streaming
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('text/event-stream')) {
+                throw new Error('Response is not a stream');
+            }
+
+            let fullResponse = '';
+            const streamingMessageDiv = createStreamingMessage();
+            
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            
+            while (true) {
+                const { done, value } = await reader.read();
+                
+                if (done) {
+                    finalizeStreamingMessage();
+                    break;
+                }
+                
+                const chunk = decoder.decode(value, { stream: true });
+                const lines = chunk.split('\n');
+                
+                for (const line of lines) {
+                    if (line.trim().startsWith('data: ')) {
+                        try {
+                            const jsonStr = line.slice(6).trim();
+                            if (jsonStr) {
+                                const data = JSON.parse(jsonStr);
+                                
+                                if (data.chunk) {
+                                    fullResponse += data.chunk;
+                                    updateStreamingMessage(fullResponse);
+                                }
+                                
+                                if (data.done) {
+                                    finalizeStreamingMessage();
+                                    return true; // Success
+                                }
+                                
+                                if (data.error) {
+                                    finalizeStreamingMessage();
+                                    throw new Error(data.chunk || 'Unknown error');
+                                }
+                            }
+                        } catch (parseError) {
+                            console.log('Failed to parse JSON:', parseError);
+                            // Continue processing other lines
+                        }
+                    }
+                }
+            }
+            
+            return true;
+            
+        } catch (error) {
+            hideLoading();
+            console.error('Streaming error:', error);
+            throw error;
+        }
+    }
+    
+    // Fallback to non-streaming
+    async function handleNonStreamingResponse(message) {
+        try {
+            showLoading();
+            
+            const response = await fetch(`/api/send-message/{{ cv_upload.id }}/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({ message: message })
+            });
+            
+            hideLoading();
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            
+            if (data.error) {
+                addMessage('Error: ' + data.error, false, true);
+            } else {
+                addMessage(data.response);
+            }
+            
+        } catch (error) {
+            hideLoading();
+            addMessage('Connection error. Please try again.', false, true);
+            console.error('Non-streaming error:', error);
+        }
+    }
+    
+    // Handle form submission
+    chatForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const message = messageInput.value.trim();
+        if (!message) return;
+        
+        // Disable form
+        sendButton.disabled = true;
+        messageInput.disabled = true;
+        sendButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        
+        // Add user message
+        addMessage(message, true);
+        messageInput.value = '';
+        
+        try {
+            // Try streaming first
+            await handleStreamingResponse(message);
+        } catch (error) {
+            console.log('Streaming failed, using fallback:', error.message);
+            // Remove any partial streaming message
+            const streamingMsg = document.getElementById('streaming-message');
+            if (streamingMsg && streamingMsg.parentElement) {
+                streamingMsg.parentElement.remove();
+            }
+            
+            // Use non-streaming fallback
+            await handleNonStreamingResponse(message);
+        } finally {
+            // Re-enable form
+            sendButton.disabled = false;
+            messageInput.disabled = false;
+            sendButton.innerHTML = '<i class="fas fa-paper-plane"></i>';
+            messageInput.focus();
+        }
+    });
+    
+    // Initial scroll to bottom and focus
+    scrollToBottom();
+    messageInput.focus();
+});
+</script>
+{% endblock %}
