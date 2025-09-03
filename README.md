@@ -1,4 +1,4 @@
-````markdown
+markdown
 # **CV Analyzer AI Interview Chat**  🚀
 
 **An AI-powered web application** that allows users to upload their CVs, automatically generates interview questions based on the CV, and provides an AI chatbot interface for practicing interview questions and receiving guidance.
